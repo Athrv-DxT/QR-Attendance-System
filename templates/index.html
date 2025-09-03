@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Attendance System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header>
+        <h1>QR Attendance System</h1>
+        <nav class="nav">
+            <a href="{{ url_for('index') }}">Dashboard</a>
+            <a href="{{ url_for('upload_page') }}">Upload Excel</a>
+            <a href="{{ url_for('participants') }}">Participants</a>
+            <a href="{{ url_for('scan_page') }}">Scan QR</a>
+        </nav>
+    </header>
+
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'success' if category == 'success' else 'error' }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="stats">
+            <div class="stat-card">
+                <h3>{{ participant_count }}</h3>
+                <p>Total Participants</p>
+            </div>
+            <div class="stat-card">
+                <h3>{{ attendance_count }}</h3>
+                <p>Attendance Marked</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>System Overview</h2>
+            <p>Welcome to the QR Attendance System. Use the navigation menu to:</p>
+            <ul>
+                <li><strong>Upload Excel:</strong> Import participant data from Excel file</li>
+                <li><strong>Participants:</strong> View all participants and send QR codes</li>
+                <li><strong>Scan QR:</strong> Mark attendance by scanning QR codes</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h3>Quick Actions</h3>
+            <div class="action-buttons">
+                <a href="{{ url_for('upload_page') }}" class="btn">Upload Participants</a>
+                <a href="{{ url_for('scan_page') }}" class="btn btn-success">Scan Attendance</a>
+                <a href="{{ url_for('download_attendance') }}" class="btn btn-secondary">Download Report</a>
+                <button onclick="resetSystem()" class="btn btn-danger">Reset System</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Recent Attendance</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Entry Time</th>
+                    </tr>
+                </thead>
+                <tbody id="attendance-tbody">
+                    <tr>
+                        <td colspan="3" style="text-align: center;">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Processing...</p>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>

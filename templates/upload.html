@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Excel - QR Attendance System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header>
+        <h1>Upload Participants</h1>
+        <nav class="nav">
+            <a href="{{ url_for('index') }}">Dashboard</a>
+            <a href="{{ url_for('upload_page') }}">Upload Excel</a>
+            <a href="{{ url_for('participants') }}">Participants</a>
+            <a href="{{ url_for('scan_page') }}">Scan QR</a>
+        </nav>
+    </header>
+
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'success' if category == 'success' else 'error' }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="card">
+            <h2>Upload Excel File</h2>
+            <p>Upload an Excel file (.xlsx or .xls) containing participant data. The file must have columns named "name" and "email".</p>
+            
+            <form id="upload-form" method="POST" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="excel-file">Select Excel File:</label>
+                    <input type="file" 
+                           id="excel-file" 
+                           name="file" 
+                           class="form-control" 
+                           accept=".xlsx,.xls"
+                           onchange="previewFile()"
+                           required>
+                </div>
+                
+                <div id="file-info" style="display: none; margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+                </div>
+                
+                <button type="submit" class="btn">Upload and Process</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h3>Excel File Requirements</h3>
+            <ul>
+                <li>File format: .xlsx or .xls</li>
+                <li>Maximum file size: 16 MB</li>
+                <li>Required columns: "name" and "email"</li>
+                <li>Column names are case-insensitive</li>
+                <li>Empty rows will be skipped</li>
+                <li>Duplicate emails will be ignored</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h3>Sample Excel Format</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>John Doe</td>
+                        <td>john@example.com</td>
+                    </tr>
+                    <tr>
+                        <td>Jane Smith</td>
+                        <td>jane@example.com</td>
+                    </tr>
+                    <tr>
+                        <td>Mike Johnson</td>
+                        <td>mike@example.com</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
