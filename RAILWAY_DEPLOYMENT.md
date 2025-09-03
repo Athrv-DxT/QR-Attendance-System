@@ -21,7 +21,7 @@
 4. **Copy the `DATABASE_URL` from the "Connect" tab**
 
 ## ⚙️ **Step 3: Configure Environment Variables**
-
+Y
 1. **Go to your project's "Variables" tab**
 2. **Add these variables:**
 
