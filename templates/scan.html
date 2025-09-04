@@ -25,19 +25,23 @@
             <div id="scanner-container">
                 <video id="qr-video" autoplay muted playsinline></video>
                 
-                <div style="margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap;">
+                <div style="margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
                     <button id="capture-btn" onclick="captureAndScan()" class="btn">Capture & Scan</button>
-                    <button onclick="manualQRInput()" class="btn btn-secondary">Manual QR Input (for testing)</button>
-                    <button onclick="testQRCode()" class="btn btn-secondary">Test with Sample QR</button>
+                    <button onclick="manualQRInput()" class="btn btn-secondary">Manual QR Input</button>
+                    <button onclick="testQRCode()" class="btn btn-secondary">Test Sample</button>
                     <button onclick="restartCamera()" class="btn btn-secondary">Restart Camera</button>
+                    <button id="torch-btn" onclick="toggleTorch()" class="btn btn-secondary">Torch</button>
+                    <label class="btn btn-secondary" style="cursor:pointer;">
+                        Upload Image
+                        <input id="qr-file" type="file" accept="image/*" onchange="scanFromFile(this)" style="display:none;" />
+                    </label>
                 </div>
                 
                 <div id="scan-result" class="scan-result"></div>
                 
                 <div style="margin-top: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
                     <h4>Debug Info:</h4>
-                    <p>Check the browser console (F12) for detailed logs about camera access and QR detection.</p>
-                    <p>If camera doesn't work, use the Manual QR Input button above.</p>
+                    <p>Use Torch in low light. You can also upload a QR image to scan.</p>
                 </div>
             </div>
         </div>
@@ -61,24 +65,13 @@
         </div>
 
         <div class="card">
-            <h3>Scanner Instructions</h3>
+            <h3>Scanner Tips</h3>
             <ul>
-                <li>Allow camera access when prompted</li>
-                <li>Hold the QR code steady within the camera frame</li>
-                <li>Ensure good lighting for best results</li>
-                <li>The scanner will automatically detect and process QR codes</li>
-                <li>You can also press "Capture & Scan" to manually scan the current frame</li>
-                <li>Duplicate scans will be rejected</li>
+                <li>Enable Torch in low light</li>
+                <li>Hold phone steady and fill frame with QR</li>
+                <li>Use Capture & Scan to take a single shot</li>
+                <li>Or upload a QR image if camera struggles</li>
             </ul>
-        </div>
-
-        <div class="card">
-            <h3>Quick Actions</h3>
-            <div class="action-buttons">
-                <a href="{{ url_for('participants') }}" class="btn">View All Participants</a>
-                <a href="{{ url_for('download_attendance') }}" class="btn btn-secondary">Download Report</a>
-                <button onclick="loadAttendanceList()" class="btn">Refresh Attendance</button>
-            </div>
         </div>
     </div>
 

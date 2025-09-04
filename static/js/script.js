@@ -2,6 +2,7 @@
 let scanner = null;
 let isScanning = false;
 let preferredDeviceId = null;
+let currentTrack = null;
 
 // Initialize QR Scanner
 function initQRScanner() {
@@ -69,6 +70,54 @@ function initQRScanner() {
         console.error('getUserMedia not supported');
         showScanResult('Camera not supported on this device/browser.', false);
     }
+}
+
+async function toggleTorch() {
+    try {
+        const video = document.getElementById('qr-video');
+        const stream = video && video.srcObject;
+        if (!stream) return;
+        const track = stream.getVideoTracks()[0];
+        currentTrack = track;
+        const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+        if (!('torch' in capabilities)) {
+            showScanResult('Torch not supported on this device.', false);
+            return;
+        }
+        const settings = track.getSettings ? track.getSettings() : {};
+        const desired = !settings.torch;
+        await track.applyConstraints({ advanced: [{ torch: desired }] });
+        showScanResult(`Torch ${desired ? 'enabled' : 'disabled'}.`, true);
+    } catch (e) {
+        showScanResult('Unable to toggle torch.', false);
+    }
+}
+
+async function scanFromFile(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const img = new Image();
+    img.onload = async () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = await detectQRFromImageData(imageData);
+        if (code) {
+            handleQRScan(code);
+            return;
+        }
+        const z = await detectQRWithZXing(canvas);
+        if (z) {
+            handleQRScan(z);
+        } else {
+            showScanResult('No QR detected in image. Try a clearer picture.', false);
+        }
+    };
+    img.onerror = () => showScanResult('Could not load image.', false);
+    img.src = URL.createObjectURL(file);
 }
 
 async function ensureRearCameraPreferred() {
