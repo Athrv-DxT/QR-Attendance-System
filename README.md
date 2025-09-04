@@ -119,7 +119,8 @@ git push origin main
    - `EMAIL_PASSWORD`: Your Gmail app password
    - `SMTP_SERVER`: `smtp.gmail.com`
    - `SMTP_PORT`: `587`
-   - `DATABASE_URL`: `sqlite:///instance/attendance.db`
+   - 
+   
 8. Click "Create Web Service"
 
 ### 3. Your app will be available at:
