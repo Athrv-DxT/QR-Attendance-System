@@ -1,6 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import os
+import tempfile
 
 db = SQLAlchemy()
 
@@ -19,16 +20,17 @@ class Attendance(db.Model):
     participant = db.relationship('Participant', backref=db.backref('attendances', lazy=True))
 
 def init_db(app):
-    # Configure database URL for Railway deployment
+    # Configure database URL from environment if provided
     database_url = os.environ.get('DATABASE_URL')
     if database_url:
-        # Railway uses postgres:// but SQLAlchemy needs postgresql://
+        # Some platforms use postgres:// but SQLAlchemy needs postgresql://
         if database_url.startswith("postgres://"):
             database_url = database_url.replace("postgres://", "postgresql://", 1)
         app.config['SQLALCHEMY_DATABASE_URI'] = database_url
     else:
-        # Local development - use absolute path to avoid Windows relative path issues
-        instance_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'instance')
+        # Fallback to SQLite - use a writable directory (e.g., /tmp on Render)
+        instance_root = os.environ.get('INSTANCE_DIR') or tempfile.gettempdir()
+        instance_dir = os.path.join(instance_root, 'instance')
         os.makedirs(instance_dir, exist_ok=True)
         db_path = os.path.join(instance_dir, 'attendance.db')
         # Normalize path separators for SQLAlchemy URI
