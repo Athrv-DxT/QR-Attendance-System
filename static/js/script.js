@@ -1,6 +1,7 @@
 // QR Scanner functionality
 let scanner = null;
 let isScanning = false;
+let preferredDeviceId = null;
 
 // Initialize QR Scanner
 function initQRScanner() {
@@ -17,13 +18,18 @@ function initQRScanner() {
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         console.log('getUserMedia supported, requesting camera access...');
         
-        navigator.mediaDevices.getUserMedia({ 
-            video: { 
-                facingMode: 'environment',
-                width: { ideal: 640 },
-                height: { ideal: 480 }
-            } 
-        })
+        const constraints = {
+            video: {
+                facingMode: preferredDeviceId ? undefined : { ideal: 'environment' },
+                deviceId: preferredDeviceId ? { exact: preferredDeviceId } : undefined,
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+                focusMode: 'continuous'
+            },
+            audio: false
+        };
+        
+        navigator.mediaDevices.getUserMedia(constraints)
         .then(stream => {
             console.log('Camera access granted, starting video stream...');
             video.srcObject = stream;
@@ -33,6 +39,8 @@ function initQRScanner() {
             video.addEventListener('loadedmetadata', () => {
                 console.log('Video metadata loaded, starting QR scanning...');
                 startScanning();
+                // Try to lock to rear camera for devices with multiple cameras
+                ensureRearCameraPreferred().catch(() => {});
             });
             
             video.addEventListener('error', (err) => {
@@ -63,6 +71,22 @@ function initQRScanner() {
     }
 }
 
+async function ensureRearCameraPreferred() {
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoInputs = devices.filter(d => d.kind === 'videoinput');
+        // Prefer a device that mentions back/environment
+        const rear = videoInputs.find(d => /back|rear|environment/i.test(d.label));
+        if (rear && rear.deviceId !== preferredDeviceId) {
+            preferredDeviceId = rear.deviceId;
+            console.log('Switching to rear camera');
+            restartCamera();
+        }
+    } catch (e) {
+        // ignore
+    }
+}
+
 function startScanning() {
     const video = document.getElementById('qr-video');
     const canvas = document.createElement('canvas');
@@ -70,29 +94,33 @@ function startScanning() {
     
     isScanning = true;
     
-    function scan() {
+    async function scan() {
         if (!isScanning) return;
         
-        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth && video.videoHeight) {
             canvas.height = video.videoHeight;
             canvas.width = video.videoWidth;
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             
-            // QR detection using jsQR library
+            // Try jsQR first
             try {
-                detectQRFromImageData(imageData).then(qrResult => {
-                    if (qrResult) {
-                        handleQRScan(qrResult);
-                        return;
-                    }
-                }).catch(err => {
-                    // Continue scanning on error
-                });
-            } catch (err) {
-                // Continue scanning
-            }
+                const qrResult = await detectQRFromImageData(imageData);
+                if (qrResult) {
+                    handleQRScan(qrResult);
+                    return;
+                }
+            } catch (_) {}
+            
+            // Fallback to ZXing if jsQR fails to detect repeatedly
+            try {
+                const zxingResult = await detectQRWithZXing(canvas);
+                if (zxingResult) {
+                    handleQRScan(zxingResult);
+                    return;
+                }
+            } catch (_) {}
         }
         
         requestAnimationFrame(scan);
@@ -122,22 +150,87 @@ function handleQRScan(qrData) {
             updateAttendanceList(data.participant);
         }
         
-        // Resume scanning after 3 seconds
+        // Resume scanning after 2 seconds
         setTimeout(() => {
             isScanning = true;
             startScanning();
-        }, 3000);
+        }, 2000);
     })
     .catch(err => {
         console.error('Error scanning QR:', err);
         showScanResult('Error processing QR code.', false);
         
-        // Resume scanning after 3 seconds
+        // Resume scanning after 2 seconds
         setTimeout(() => {
             isScanning = true;
             startScanning();
-        }, 3000);
+        }, 2000);
     });
+}
+
+// Load jsQR
+function loadJsQR() {
+    return new Promise((resolve, reject) => {
+        if (window.jsQR) {
+            resolve(window.jsQR);
+            return;
+        }
+        
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.min.js';
+        script.onload = () => resolve(window.jsQR);
+        script.onerror = reject;
+        document.head.appendChild(script);
+    });
+}
+
+// Load ZXing
+function loadZXing() {
+    return new Promise((resolve, reject) => {
+        if (window.ZXing && window.ZXing.BrowserMultiFormatReader) {
+            resolve(window.ZXing);
+            return;
+        }
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/@zxing/library@0.20.0/umd/index.min.js';
+        script.onload = () => resolve(window.ZXing);
+        script.onerror = reject;
+        document.head.appendChild(script);
+    });
+}
+
+// Improved QR detection with jsQR
+async function detectQRFromImageData(imageData) {
+    try {
+        const jsQR = await loadJsQR();
+        const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: 'dontInvert',
+        });
+        if (code && code.data) {
+            console.log('jsQR detected:', code.data);
+            return code.data;
+        }
+        return null;
+    } catch (error) {
+        return null;
+    }
+}
+
+// ZXing fallback detection using canvas image
+async function detectQRWithZXing(canvas) {
+    try {
+        const ZXing = await loadZXing();
+        if (!ZXing || !ZXing.BrowserMultiFormatReader) return null;
+        const reader = new ZXing.BrowserMultiFormatReader();
+        const result = await reader.decodeFromCanvas(canvas).catch(() => null);
+        if (result && result.text) {
+            console.log('ZXing detected:', result.text);
+            return result.text;
+        }
+        return null;
+    } catch (e) {
+        return null;
+    }
 }
 
 function updateAttendanceList(participant) {
@@ -292,11 +385,9 @@ async function detectQRFromImageData(imageData) {
             console.log('QR code detected:', code.data);
             return code.data;
         } else {
-            console.log('No QR code found in frame');
             return null;
         }
     } catch (error) {
-        console.error('Error in QR detection:', error);
         return null;
     }
 }
@@ -317,7 +408,7 @@ function restartCamera() {
     stopCamera();
     setTimeout(() => {
         initQRScanner();
-    }, 1000);
+    }, 500);
 }
 
 // Enhanced error handling
