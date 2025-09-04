@@ -34,7 +34,6 @@ venv.bak/
 .env.production
 .env.development
 .env.test
-railway.env
 *.env
 
 # Database
@@ -80,8 +79,8 @@ static/qr_codes/*
 *.tmp
 *.temp
 
-# Railway deployment (optional - remove if you want to keep deployment config)
-# railway.toml
+# Render deployment files (keep these for deployment)
+# render.yaml
 # procfile
 
 # Flask instance folder
