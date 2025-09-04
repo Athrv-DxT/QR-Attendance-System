@@ -1,4 +1,4 @@
-import pandas as pd
+import openpyxl
 import qrcode
 import os
 import smtplib
@@ -11,30 +11,39 @@ import uuid
 def process_excel_file(file_path):
     """Process uploaded Excel file and extract name and email"""
     try:
-        df = pd.read_excel(file_path)
+        workbook = openpyxl.load_workbook(file_path)
+        sheet = workbook.active
         
-        # Clean column names
-        df.columns = df.columns.str.strip().str.lower()
+        # Get headers from first row
+        headers = []
+        for cell in sheet[1]:
+            if cell.value:
+                headers.append(str(cell.value).strip().lower())
+            else:
+                headers.append("")
         
         # Look for name and email columns
-        name_col = None
-        email_col = None
+        name_col_idx = None
+        email_col_idx = None
         
-        for col in df.columns:
-            if 'name' in col:
-                name_col = col
-            elif 'email' in col or 'mail' in col:
-                email_col = col
+        for i, header in enumerate(headers):
+            if 'name' in header:
+                name_col_idx = i + 1  # openpyxl uses 1-based indexing
+            elif 'email' in header or 'mail' in header:
+                email_col_idx = i + 1
         
-        if not name_col or not email_col:
+        if not name_col_idx or not email_col_idx:
             raise ValueError("Excel file must contain 'name' and 'email' columns")
         
         participants = []
-        for _, row in df.iterrows():
-            if pd.notna(row[name_col]) and pd.notna(row[email_col]):
+        for row in sheet.iter_rows(min_row=2):  # Skip header row
+            name_cell = row[name_col_idx - 1]  # Convert to 0-based
+            email_cell = row[email_col_idx - 1]
+            
+            if name_cell.value and email_cell.value:
                 participants.append({
-                    'name': str(row[name_col]).strip(),
-                    'email': str(row[email_col]).strip().lower()
+                    'name': str(name_cell.value).strip(),
+                    'email': str(email_cell.value).strip().lower()
                 })
         
         return participants
@@ -127,7 +136,21 @@ def create_attendance_excel(attendances):
                 'Entry Time': attendance.entry_time.strftime('%Y-%m-%d %H:%M:%S')
             })
         
-        df = pd.DataFrame(data)
+        # Create workbook and worksheet
+        workbook = openpyxl.Workbook()
+        worksheet = workbook.active
+        worksheet.title = "Attendance Report"
+        
+        # Add headers
+        headers = ['Name', 'Email', 'Entry Time']
+        for col, header in enumerate(headers, 1):
+            worksheet.cell(row=1, column=col, value=header)
+        
+        # Add data
+        for row, record in enumerate(data, 2):
+            worksheet.cell(row=row, column=1, value=record['Name'])
+            worksheet.cell(row=row, column=2, value=record['Email'])
+            worksheet.cell(row=row, column=3, value=record['Entry Time'])
         
         # Ensure uploads directory exists
         uploads_dir = 'uploads'
@@ -135,7 +158,7 @@ def create_attendance_excel(attendances):
         
         filename = f"attendance_{uuid.uuid4().hex[:8]}.xlsx"
         filepath = os.path.join(uploads_dir, filename)
-        df.to_excel(filepath, index=False)
+        workbook.save(filepath)
         
         return filepath
     except Exception as e:
