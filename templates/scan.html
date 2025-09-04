@@ -25,12 +25,14 @@
             <div id="scanner-container">
                 <video id="qr-video" autoplay muted playsinline></video>
                 
-                <div id="scan-result" class="scan-result"></div>
-                
-                <div style="margin-top: 15px;">
+                <div style="margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button id="capture-btn" onclick="captureAndScan()" class="btn">Capture & Scan</button>
                     <button onclick="manualQRInput()" class="btn btn-secondary">Manual QR Input (for testing)</button>
                     <button onclick="testQRCode()" class="btn btn-secondary">Test with Sample QR</button>
+                    <button onclick="restartCamera()" class="btn btn-secondary">Restart Camera</button>
                 </div>
+                
+                <div id="scan-result" class="scan-result"></div>
                 
                 <div style="margin-top: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
                     <h4>Debug Info:</h4>
@@ -65,7 +67,7 @@
                 <li>Hold the QR code steady within the camera frame</li>
                 <li>Ensure good lighting for best results</li>
                 <li>The scanner will automatically detect and process QR codes</li>
-                <li>Attendance will be marked instantly upon successful scan</li>
+                <li>You can also press "Capture & Scan" to manually scan the current frame</li>
                 <li>Duplicate scans will be rejected</li>
             </ul>
         </div>

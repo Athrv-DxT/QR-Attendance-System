@@ -850,3 +850,39 @@ function loadAttendanceList() {
                 console.error('Error loading attendance list.');
             });
         }
+
+function captureAndScan() {
+    const video = document.getElementById('qr-video');
+    if (!video || video.readyState !== video.HAVE_ENOUGH_DATA) {
+        showScanResult('Camera not ready. Try again in a moment.', false);
+        return;
+    }
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+    // Try jsQR first
+    detectQRFromImageData(imageData)
+        .then(code => {
+            if (code) {
+                handleQRScan(code);
+                return;
+            }
+            // Fallback to ZXing from canvas
+            return detectQRWithZXing(canvas).then(z => {
+                if (z) {
+                    handleQRScan(z);
+                } else {
+                    showScanResult('No QR detected in captured frame. Try holding closer and steady.', false);
+                }
+            });
+        })
+        .catch(() => {
+            showScanResult('Scan failed. Try again.', false);
+        });
+}
