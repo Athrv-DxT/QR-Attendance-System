@@ -19,21 +19,39 @@ class Attendance(db.Model):
     entry_time = db.Column(db.DateTime, default=datetime.utcnow)
     participant = db.relationship('Participant', backref=db.backref('attendances', lazy=True))
 
+def _writable_instance_dir() -> str:
+    custom = os.environ.get('INSTANCE_DIR')
+    if custom:
+        base = custom
+    else:
+        # Prefer Render persistent disk if present
+        base = '/var/data' if os.path.isdir('/var/data') else tempfile.gettempdir()
+    instance_dir = os.path.join(base, 'instance')
+    os.makedirs(instance_dir, exist_ok=True)
+    return instance_dir
+
 def init_db(app):
-    # Configure database URL from environment if provided
     database_url = os.environ.get('DATABASE_URL')
+
     if database_url:
-        # Some platforms use postgres:// but SQLAlchemy needs postgresql://
+        # Normalize postgres scheme
         if database_url.startswith("postgres://"):
             database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+        if database_url.startswith("sqlite"):
+            # If sqlite URL is relative or not clearly absolute, rewrite to writable absolute path
+            # sqlite:///path -> relative; sqlite:////path -> absolute
+            is_absolute = database_url.startswith("sqlite:////")
+            if not is_absolute:
+                instance_dir = _writable_instance_dir()
+                db_path = os.path.join(instance_dir, 'attendance.db')
+                db_uri_path = db_path.replace('\\', '/')
+                database_url = f"sqlite:///{db_uri_path}"
         app.config['SQLALCHEMY_DATABASE_URI'] = database_url
     else:
-        # Fallback to SQLite - use a writable directory (e.g., /tmp on Render)
-        instance_root = os.environ.get('INSTANCE_DIR') or tempfile.gettempdir()
-        instance_dir = os.path.join(instance_root, 'instance')
-        os.makedirs(instance_dir, exist_ok=True)
+        # Fallback to SQLite under a writable directory
+        instance_dir = _writable_instance_dir()
         db_path = os.path.join(instance_dir, 'attendance.db')
-        # Normalize path separators for SQLAlchemy URI
         db_uri_path = db_path.replace('\\', '/')
         app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_uri_path}'
     
