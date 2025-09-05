@@ -1,78 +1,88 @@
-// QR Scanner functionality
+// QR Scanner functionality using Html5Qrcode
 let scanner = null;
 let isScanning = false;
 let preferredDeviceId = null;
 let currentTrack = null;
 
-// Initialize QR Scanner
+// Initialize QR Scanner using Html5Qrcode
 function initQRScanner() {
-    console.log('Initializing QR Scanner...');
-    const video = document.getElementById('qr-video');
-    const resultDiv = document.getElementById('scan-result');
+    console.log('Initializing Html5Qrcode Scanner...');
     
-    if (!video) {
-        console.error('Video element not found');
+    // Load Html5Qrcode library first
+    loadHtml5Qrcode().then(() => {
+        startHtml5QrcodeScanner();
+    }).catch(error => {
+        console.error('Failed to load Html5Qrcode:', error);
+        showScanResult('Failed to load QR scanner. Please refresh the page.', false);
+    });
+}
+
+// Load Html5Qrcode library
+function loadHtml5Qrcode() {
+    return new Promise((resolve, reject) => {
+        if (window.Html5Qrcode) {
+            resolve(window.Html5Qrcode);
+            return;
+        }
+        
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+        script.onload = () => resolve(window.Html5Qrcode);
+        script.onerror = reject;
+        document.head.appendChild(script);
+    });
+}
+
+// Start Html5Qrcode scanner
+function startHtml5QrcodeScanner() {
+    const scannerContainer = document.getElementById('scanner-container');
+    if (!scannerContainer) {
+        console.error('Scanner container not found');
         return;
     }
     
-    // Check if browser supports getUserMedia
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        console.log('getUserMedia supported, requesting camera access...');
+    // Create scanner element
+    const scannerElement = document.createElement('div');
+    scannerElement.id = 'html5-qrcode-scanner';
+    scannerContainer.insertBefore(scannerElement, scannerContainer.firstChild);
+    
+    // Initialize scanner
+    scanner = new Html5Qrcode("html5-qrcode-scanner");
+    
+    const config = {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0
+    };
+    
+    scanner.start(
+        { facingMode: "environment" },
+        config,
+        (decodedText) => {
+            console.log('QR Code detected instantly:', decodedText);
+            handleQRScan(decodedText);
+        },
+        (error) => {
+            // Silent error handling - don't spam console
+        }
+    ).then(() => {
+        console.log('Html5Qrcode scanner started successfully');
+        isScanning = true;
+        showScanResult('⚡ Instant QR Scanner Ready!', true);
+    }).catch(err => {
+        console.error('Failed to start scanner:', err);
+        showScanResult('Failed to start camera. Please check permissions.', false);
         
-        const constraints = {
-            video: {
-                facingMode: preferredDeviceId ? undefined : { ideal: 'environment' },
-                deviceId: preferredDeviceId ? { exact: preferredDeviceId } : undefined,
-                width: { ideal: 1280, min: 640 },
-                height: { ideal: 720, min: 480 },
-                frameRate: { ideal: 60, min: 30 },
-                focusMode: 'continuous',
-                whiteBalanceMode: 'continuous',
-                exposureMode: 'continuous'
-            },
-            audio: false
-        };
-        
-        navigator.mediaDevices.getUserMedia(constraints)
-        .then(stream => {
-            console.log('Camera access granted, starting video stream...');
-            video.srcObject = stream;
-            video.play();
-            
-            // Wait for video to be ready
-            video.addEventListener('loadedmetadata', () => {
-                console.log('Video metadata loaded, starting QR scanning...');
-                startScanning();
-                // Try to lock to rear camera for devices with multiple cameras
-                ensureRearCameraPreferred().catch(() => {});
-            });
-            
-            video.addEventListener('error', (err) => {
-                console.error('Video error:', err);
-                showScanResult('Video stream error. Please refresh the page.', false);
-            });
-        })
-        .catch(err => {
-            console.error('Error accessing camera:', err);
-            showScanResult(`Camera error: ${err.name} - ${err.message}`, false);
-            
-            // Show manual input option
-            const scannerContainer = document.getElementById('scanner-container');
-            if (scannerContainer) {
-                const fallbackDiv = document.createElement('div');
-                fallbackDiv.innerHTML = `
-                    <div style="text-align: center; padding: 20px; background: #f8f9fa; border-radius: 8px; margin-top: 15px;">
-                        <p>Camera not available. Use manual input instead:</p>
-                        <button onclick="manualQRInput()" class="btn">Manual QR Input</button>
-                    </div>
-                `;
-                scannerContainer.appendChild(fallbackDiv);
-            }
-        });
-    } else {
-        console.error('getUserMedia not supported');
-        showScanResult('Camera not supported on this device/browser.', false);
-    }
+        // Show manual input option
+        const fallbackDiv = document.createElement('div');
+        fallbackDiv.innerHTML = `
+            <div style="text-align: center; padding: 20px; background: #f8f9fa; border-radius: 8px; margin-top: 15px;">
+                <p>Camera not available. Use manual input instead:</p>
+                <button onclick="manualQRInput()" class="btn">Manual QR Input</button>
+            </div>
+        `;
+        scannerContainer.appendChild(fallbackDiv);
+    });
 }
 
 async function toggleTorch() {
@@ -139,56 +149,11 @@ async function ensureRearCameraPreferred() {
     }
 }
 
+// Html5Qrcode handles scanning automatically - no need for manual scanning
 function startScanning() {
-    const video = document.getElementById('qr-video');
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    
-    isScanning = true;
-    let scanCount = 0;
-    
-    async function scan() {
-        if (!isScanning) return;
-        
-        if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth && video.videoHeight) {
-            canvas.height = video.videoHeight;
-            canvas.width = video.videoWidth;
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            
-            // Try jsQR first - fastest detection
-            try {
-                const qrResult = await detectQRFromImageData(imageData);
-                if (qrResult) {
-                    console.log('QR detected instantly!', qrResult);
-                    handleQRScan(qrResult);
-                    return;
-                }
-            } catch (error) {
-                // Silent fail, try next method
-            }
-            
-            // Try ZXing immediately if jsQR fails
-            try {
-                const zxingResult = await detectQRWithZXing(canvas);
-                if (zxingResult) {
-                    console.log('QR detected with ZXing!', zxingResult);
-                    handleQRScan(zxingResult);
-                    return;
-                }
-            } catch (error) {
-                // Silent fail, continue scanning
-            }
-            
-            scanCount++;
-        }
-        
-        // Continue scanning immediately without any delays
-        requestAnimationFrame(scan);
-    }
-    
-    scan();
+    // Html5Qrcode handles continuous scanning automatically
+    // This function is kept for compatibility but does nothing
+    console.log('Html5Qrcode is handling scanning automatically');
 }
 
 // QR detection function - will be replaced by the real implementation below
@@ -198,8 +163,14 @@ function handleQRScan(qrData) {
     
     console.log('QR Code detected instantly:', qrData);
     
-    // Stop scanning immediately
-    isScanning = false;
+    // Stop scanning temporarily
+    if (scanner && isScanning) {
+        scanner.stop().then(() => {
+            isScanning = false;
+        }).catch(err => {
+            console.error('Error stopping scanner:', err);
+        });
+    }
     
     // Show instant feedback
     showScanResult('✓ QR Detected! Processing...', true);
@@ -218,92 +189,23 @@ function handleQRScan(qrData) {
             updateAttendanceList(data.participant);
         }
         
-        // Resume scanning quickly after 1 second
+        // Resume scanning after 2 seconds
         setTimeout(() => {
-            isScanning = true;
-            startScanning();
-        }, 1000);
+            restartCamera();
+        }, 2000);
     })
     .catch(err => {
         console.error('Error scanning QR:', err);
         showScanResult('Error processing QR code.', false);
         
-        // Resume scanning quickly after 1 second
+        // Resume scanning after 2 seconds
         setTimeout(() => {
-            isScanning = true;
-            startScanning();
-        }, 1000);
+            restartCamera();
+        }, 2000);
     });
 }
 
-// Load jsQR
-function loadJsQR() {
-    return new Promise((resolve, reject) => {
-        if (window.jsQR) {
-            resolve(window.jsQR);
-            return;
-        }
-        
-        const script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.min.js';
-        script.onload = () => resolve(window.jsQR);
-        script.onerror = reject;
-        document.head.appendChild(script);
-    });
-}
-
-// Load ZXing
-function loadZXing() {
-    return new Promise((resolve, reject) => {
-        if (window.ZXing && window.ZXing.BrowserMultiFormatReader) {
-            resolve(window.ZXing);
-            return;
-        }
-        const script = document.createElement('script');
-        script.src = 'https://unpkg.com/@zxing/library@0.20.0/umd/index.min.js';
-        script.onload = () => resolve(window.ZXing);
-        script.onerror = reject;
-        document.head.appendChild(script);
-    });
-}
-
-// Improved QR detection with jsQR
-async function detectQRFromImageData(imageData) {
-    try {
-        const jsQR = await loadJsQR();
-        const code = jsQR(imageData.data, imageData.width, imageData.height, {
-            inversionAttempts: 'dontInvert',
-        });
-        if (code && code.data) {
-            console.log('jsQR detected:', code.data);
-            return code.data;
-        }
-        return null;
-    } catch (error) {
-        return null;
-    }
-}
-
-// Fast ZXing fallback detection
-async function detectQRWithZXing(canvas) {
-    try {
-        const ZXing = await loadZXing();
-        if (!ZXing || !ZXing.BrowserMultiFormatReader) {
-            return null;
-        }
-        
-        const reader = new ZXing.BrowserMultiFormatReader();
-        const result = await reader.decodeFromCanvas(canvas).catch(() => null);
-        
-        if (result && result.text) {
-            return result.text;
-        }
-        
-        return null;
-    } catch (e) {
-        return null;
-    }
-}
+// Html5Qrcode handles all QR detection - no need for additional libraries
 
 function updateAttendanceList(participant) {
     const tbody = document.getElementById('attendance-tbody');
@@ -458,66 +360,28 @@ function previewFile() {
     }
 }
 
-// Enhanced QR Scanner with jsQR library fallback
-function loadJsQR() {
-    return new Promise((resolve, reject) => {
-        if (window.jsQR) {
-            resolve(window.jsQR);
-            return;
-        }
-        
-        const script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.min.js';
-        script.onload = () => resolve(window.jsQR);
-        script.onerror = reject;
-        document.head.appendChild(script);
-    });
-}
+// Html5Qrcode handles all QR detection automatically
 
-// Ultra-fast QR detection function
-async function detectQRFromImageData(imageData) {
-    try {
-        const jsQR = await loadJsQR();
-        
-        // Try the fastest detection first - no inversion
-        const code = jsQR(imageData.data, imageData.width, imageData.height, {
-            inversionAttempts: "dontInvert"
-        });
-        
-        if (code && code.data) {
-            return code.data;
-        }
-        
-        // Quick fallback - try with inversion
-        const codeInverted = jsQR(imageData.data, imageData.width, imageData.height, {
-            inversionAttempts: "invertFirst"
-        });
-        
-        if (codeInverted && codeInverted.data) {
-            return codeInverted.data;
-        }
-        
-        return null;
-    } catch (error) {
-        return null;
-    }
-}
-
-// Camera control functions
+// Camera control functions for Html5Qrcode
 function stopCamera() {
-    const video = document.getElementById('qr-video');
-    if (video && video.srcObject) {
-        const stream = video.srcObject;
-        const tracks = stream.getTracks();
-        tracks.forEach(track => track.stop());
-        video.srcObject = null;
+    if (scanner && isScanning) {
+        scanner.stop().then(() => {
+            console.log('Scanner stopped');
+            isScanning = false;
+        }).catch(err => {
+            console.error('Error stopping scanner:', err);
+        });
     }
-    isScanning = false;
 }
 
 function restartCamera() {
     stopCamera();
     setTimeout(() => {
+        // Clear the scanner container
+        const scannerElement = document.getElementById('html5-qrcode-scanner');
+        if (scannerElement) {
+            scannerElement.remove();
+        }
         initQRScanner();
     }, 500);
 }
@@ -963,39 +827,10 @@ function loadAttendanceList() {
         }
 
 function captureAndScan() {
-    const video = document.getElementById('qr-video');
-    if (!video || video.readyState !== video.HAVE_ENOUGH_DATA) {
-        showScanResult('Camera not ready. Try again in a moment.', false);
+    if (!scanner || !isScanning) {
+        showScanResult('Scanner not ready. Please wait for camera to initialize.', false);
         return;
     }
 
-    showScanResult('Scanning...', true);
-    
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-    // Try jsQR first - fastest
-    detectQRFromImageData(imageData)
-        .then(code => {
-            if (code) {
-                handleQRScan(code);
-                return;
-            }
-            // Quick fallback to ZXing
-            return detectQRWithZXing(canvas).then(z => {
-                if (z) {
-                    handleQRScan(z);
-                } else {
-                    showScanResult('No QR detected. Try holding closer and steady.', false);
-                }
-            });
-        })
-        .catch(() => {
-            showScanResult('Scan failed. Try again.', false);
-        });
+    showScanResult('Html5Qrcode is continuously scanning. Just point at QR code!', true);
 }

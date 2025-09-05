@@ -23,14 +23,12 @@
             <p>Position the QR code within the camera frame to mark attendance.</p>
             
             <div id="scanner-container">
-                <video id="qr-video" autoplay muted playsinline></video>
+                <!-- Html5Qrcode will create its own video element here -->
                 
                 <div style="margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
-                    <button id="capture-btn" onclick="captureAndScan()" class="btn">Capture & Scan</button>
                     <button onclick="manualQRInput()" class="btn btn-secondary">Manual QR Input</button>
                     <button onclick="testQRCode()" class="btn btn-secondary">Test Sample</button>
                     <button onclick="restartCamera()" class="btn btn-secondary">Restart Camera</button>
-                    <button id="torch-btn" onclick="toggleTorch()" class="btn btn-secondary">Torch</button>
                     <label class="btn btn-secondary" style="cursor:pointer;">
                         Upload Image
                         <input id="qr-file" type="file" accept="image/*" onchange="scanFromFile(this)" style="display:none;" />
@@ -40,17 +38,17 @@
                 <div id="scan-result" class="scan-result"></div>
                 
                 <div style="margin-top: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
-                    <h4>⚡ Instant QR Scanning Active</h4>
+                    <h4>⚡ Html5Qrcode - Ultra Fast Scanning</h4>
                     <ul style="margin: 10px 0; padding-left: 20px;">
-                        <li><strong>Auto-Scan:</strong> QR codes are detected instantly when in frame</li>
-                        <li><strong>Lighting:</strong> Use Torch in low light conditions</li>
-                        <li><strong>Distance:</strong> Hold QR code 6-12 inches from camera</li>
-                        <li><strong>Position:</strong> Ensure QR code fills most of the frame</li>
-                        <li><strong>Speed:</strong> No need to hold steady - instant detection!</li>
+                        <li><strong>Instant Detection:</strong> QR codes detected immediately when in frame</li>
+                        <li><strong>High Performance:</strong> Optimized Html5Qrcode library for speed</li>
+                        <li><strong>Auto-Focus:</strong> Automatically focuses on QR codes</li>
+                        <li><strong>Distance:</strong> Works from 6 inches to 3 feet away</li>
+                        <li><strong>Lighting:</strong> Works in various lighting conditions</li>
                         <li><strong>Testing:</strong> Use "Test Sample" to verify system works</li>
                     </ul>
                     <p style="margin-top: 10px; font-size: 0.9em; color: #28a745; font-weight: bold;">
-                        ✓ QR codes will be scanned automatically as soon as they appear in the camera frame!
+                        ✓ Html5Qrcode provides the fastest QR scanning experience!
                     </p>
                 </div>
             </div>
