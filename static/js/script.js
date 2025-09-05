@@ -23,9 +23,9 @@ function initQRScanner() {
             video: {
                 facingMode: preferredDeviceId ? undefined : { ideal: 'environment' },
                 deviceId: preferredDeviceId ? { exact: preferredDeviceId } : undefined,
-                width: { ideal: 1920, min: 640 },
-                height: { ideal: 1080, min: 480 },
-                frameRate: { ideal: 30, min: 15 },
+                width: { ideal: 1280, min: 640 },
+                height: { ideal: 720, min: 480 },
+                frameRate: { ideal: 60, min: 30 },
                 focusMode: 'continuous',
                 whiteBalanceMode: 'continuous',
                 exposureMode: 'continuous'
@@ -146,58 +146,45 @@ function startScanning() {
     
     isScanning = true;
     let scanCount = 0;
-    let lastScanTime = 0;
     
     async function scan() {
         if (!isScanning) return;
         
         if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth && video.videoHeight) {
-            // Throttle scanning to avoid overwhelming the system
-            const now = Date.now();
-            if (now - lastScanTime < 100) { // Scan every 100ms max
-                requestAnimationFrame(scan);
-                return;
-            }
-            lastScanTime = now;
-            
             canvas.height = video.videoHeight;
             canvas.width = video.videoWidth;
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             
-            // Try jsQR first
+            // Try jsQR first - fastest detection
             try {
                 const qrResult = await detectQRFromImageData(imageData);
                 if (qrResult) {
-                    console.log('QR detected on scan attempt:', scanCount);
+                    console.log('QR detected instantly!', qrResult);
                     handleQRScan(qrResult);
                     return;
                 }
             } catch (error) {
-                console.log('jsQR scan error:', error);
+                // Silent fail, try next method
             }
             
-            // Fallback to ZXing if jsQR fails to detect repeatedly
+            // Try ZXing immediately if jsQR fails
             try {
                 const zxingResult = await detectQRWithZXing(canvas);
                 if (zxingResult) {
-                    console.log('QR detected with ZXing on scan attempt:', scanCount);
+                    console.log('QR detected with ZXing!', zxingResult);
                     handleQRScan(zxingResult);
                     return;
                 }
             } catch (error) {
-                console.log('ZXing scan error:', error);
+                // Silent fail, continue scanning
             }
             
             scanCount++;
-            
-            // Show periodic status updates
-            if (scanCount % 50 === 0) {
-                console.log('Scanning... attempt', scanCount, 'Video size:', video.videoWidth, 'x', video.videoHeight);
-            }
         }
         
+        // Continue scanning immediately without any delays
         requestAnimationFrame(scan);
     }
     
@@ -209,7 +196,13 @@ function startScanning() {
 function handleQRScan(qrData) {
     if (!qrData) return;
     
+    console.log('QR Code detected instantly:', qrData);
+    
+    // Stop scanning immediately
     isScanning = false;
+    
+    // Show instant feedback
+    showScanResult('✓ QR Detected! Processing...', true);
     
     fetch('/scan-qr', {
         method: 'POST',
@@ -225,21 +218,21 @@ function handleQRScan(qrData) {
             updateAttendanceList(data.participant);
         }
         
-        // Resume scanning after 2 seconds
+        // Resume scanning quickly after 1 second
         setTimeout(() => {
             isScanning = true;
             startScanning();
-        }, 2000);
+        }, 1000);
     })
     .catch(err => {
         console.error('Error scanning QR:', err);
         showScanResult('Error processing QR code.', false);
         
-        // Resume scanning after 2 seconds
+        // Resume scanning quickly after 1 second
         setTimeout(() => {
             isScanning = true;
             startScanning();
-        }, 2000);
+        }, 1000);
     });
 }
 
@@ -291,40 +284,23 @@ async function detectQRFromImageData(imageData) {
     }
 }
 
-// ZXing fallback detection using canvas image
+// Fast ZXing fallback detection
 async function detectQRWithZXing(canvas) {
     try {
-        console.log('Loading ZXing library...');
         const ZXing = await loadZXing();
         if (!ZXing || !ZXing.BrowserMultiFormatReader) {
-            console.error('ZXing library not available');
             return null;
         }
         
         const reader = new ZXing.BrowserMultiFormatReader();
+        const result = await reader.decodeFromCanvas(canvas).catch(() => null);
         
-        // Try multiple detection attempts
-        const attempts = [
-            () => reader.decodeFromCanvas(canvas),
-            () => reader.decodeFromImageData(canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height))
-        ];
-        
-        for (const attempt of attempts) {
-            try {
-                const result = await attempt();
-                if (result && result.text) {
-                    console.log('ZXing detected:', result.text);
-                    return result.text;
-                }
-            } catch (e) {
-                console.log('ZXing attempt failed:', e.message);
-            }
+        if (result && result.text) {
+            return result.text;
         }
         
-        console.log('No QR code detected with ZXing');
         return null;
     } catch (e) {
-        console.error('ZXing detection error:', e);
         return null;
     }
 }
@@ -498,33 +474,31 @@ function loadJsQR() {
     });
 }
 
-// Improved QR detection function
+// Ultra-fast QR detection function
 async function detectQRFromImageData(imageData) {
     try {
-        console.log('Loading jsQR library...');
         const jsQR = await loadJsQR();
-        console.log('jsQR library loaded, detecting QR code...');
         
-        // Try multiple detection attempts with different parameters
-        const detectionOptions = [
-            { inversionAttempts: "dontInvert" },
-            { inversionAttempts: "attemptBoth" },
-            { inversionAttempts: "invertFirst" },
-            { inversionAttempts: "dontInvert", greyScaleWeights: { red: 0.299, green: 0.587, blue: 0.114 } }
-        ];
+        // Try the fastest detection first - no inversion
+        const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: "dontInvert"
+        });
         
-        for (const options of detectionOptions) {
-            const code = jsQR(imageData.data, imageData.width, imageData.height, options);
-            if (code && code.data) {
-                console.log('QR code detected with options:', options, 'Data:', code.data);
-                return code.data;
-            }
+        if (code && code.data) {
+            return code.data;
         }
         
-        console.log('No QR code detected with jsQR');
+        // Quick fallback - try with inversion
+        const codeInverted = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: "invertFirst"
+        });
+        
+        if (codeInverted && codeInverted.data) {
+            return codeInverted.data;
+        }
+        
         return null;
     } catch (error) {
-        console.error('jsQR detection error:', error);
         return null;
     }
 }
@@ -995,7 +969,7 @@ function captureAndScan() {
         return;
     }
 
-    showScanResult('Capturing and analyzing frame...', true);
+    showScanResult('Scanning...', true);
     
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -1003,30 +977,25 @@ function captureAndScan() {
     canvas.height = video.videoHeight || 480;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    console.log('Captured frame size:', canvas.width, 'x', canvas.height);
-
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
-    // Try jsQR first
+    // Try jsQR first - fastest
     detectQRFromImageData(imageData)
         .then(code => {
             if (code) {
-                console.log('QR detected in captured frame with jsQR');
                 handleQRScan(code);
                 return;
             }
-            // Fallback to ZXing from canvas
+            // Quick fallback to ZXing
             return detectQRWithZXing(canvas).then(z => {
                 if (z) {
-                    console.log('QR detected in captured frame with ZXing');
                     handleQRScan(z);
                 } else {
-                    showScanResult('No QR code detected in captured frame. Try:\n• Holding the QR code closer to the camera\n• Ensuring good lighting\n• Keeping the QR code steady\n• Making sure the QR code fills most of the frame', false);
+                    showScanResult('No QR detected. Try holding closer and steady.', false);
                 }
             });
         })
-        .catch((error) => {
-            console.error('Capture and scan error:', error);
-            showScanResult('Scan failed. Please try again or use manual input.', false);
+        .catch(() => {
+            showScanResult('Scan failed. Try again.', false);
         });
 }
