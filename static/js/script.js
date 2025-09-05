@@ -308,7 +308,7 @@ function generateTestQR() {
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize QR scanner if on scan page
-    if (document.getElementById('qr-video')) {
+    if (document.getElementById('scanner-container')) {
         initQRScanner();
     }
     
@@ -658,7 +658,7 @@ document.addEventListener('DOMContentLoaded', function() {
     optimizeForMobile();
     
     // Initialize QR scanner if on scan page
-    if (document.getElementById('qr-video')) {
+    if (document.getElementById('scanner-container')) {
         initQRScanner();
         
         // Add keyboard shortcut hints
