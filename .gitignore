@@ -66,6 +66,10 @@ create_*.py
 test_camera.html
 test_*.xlsx
 test_*.html
+test_qr_scanning.html
+
+# Documentation files (development only)
+QR_SCANNING_IMPROVEMENTS.md
 
 # Uploads (keep if you want to preserve uploaded files)
 uploads/*
